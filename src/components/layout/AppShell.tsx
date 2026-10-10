@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { ConnectBoxScreen } from '../screens/ConnectBoxScreen';
 import { TodayScreen } from '../screens/TodayScreen';
@@ -7,6 +8,9 @@ import { HistoryScreen } from '../screens/HistoryScreen';
 import { RefillsScreen } from '../screens/RefillsScreen';
 import { PrivacyDignityScreen } from '../screens/PrivacyDignityScreen';
 import { SimulatorScreen } from '../screens/SimulatorScreen';
+import LoginScreen from '../screens/LoginScreen';
+import ConsentScreen from '../screens/ConsentScreen';
+import InviteScreen from '../screens/InviteScreen';
 import { GentleNudgeModal } from '../screens/GentleNudgeModal';
 import { LegalModals } from '../screens/LegalModals';
 import { BottomNav } from './BottomNav';
@@ -16,7 +20,10 @@ import {
   Box,
   Bell,
   EyeOff,
-  Check
+  Check,
+  UserPlus,
+  Lock,
+  FileCheck
 } from 'lucide-react';
 
 export const AppShell: React.FC = () => {
@@ -31,13 +38,23 @@ export const AppShell: React.FC = () => {
     toggleSharingPause,
   } = useApp();
 
+  const { authStep, isDemoMode } = useAuth();
   const [isFramed, setIsFramed] = useState<boolean>(true);
 
   // Render the active view
   const renderActiveScreen = () => {
+    // If Supabase is connected and auth is required and not overridden by demo switcher
+    if (!isDemoMode && currentStep === 'main') {
+      if (authStep === 'auth') return <LoginScreen />;
+      if (authStep === 'consent') return <ConsentScreen />;
+    }
+
     if (currentStep === 'welcome') return <OnboardingScreen />;
     if (currentStep === 'connect-box') return <ConnectBoxScreen />;
     if (currentStep === 'simulator') return <SimulatorScreen />;
+    if (currentStep === 'login') return <LoginScreen />;
+    if (currentStep === 'consent') return <ConsentScreen />;
+    if (currentStep === 'invite') return <InviteScreen />;
 
     // Main app tabs
     switch (currentTab) {
@@ -62,7 +79,7 @@ export const AppShell: React.FC = () => {
           <img src="/logo.svg" alt="CareBox" className="w-5 h-5 invert" />
           <span className="font-heading font-bold text-sm tracking-tight">CareBox Family</span>
           <span className="bg-[#2E7D79] text-[10px] px-2 py-0.5 rounded-full font-medium">
-            Phase 1 UI Demo
+            Phases 1–3 Ready
           </span>
         </div>
 
@@ -83,6 +100,26 @@ export const AppShell: React.FC = () => {
             }`}
           >
             2. Connect
+          </button>
+          <button
+            onClick={() => setCurrentStep('login')}
+            className={`px-2 py-1 rounded-lg transition-colors text-[11px] flex items-center gap-1 ${
+              currentStep === 'login' ? 'bg-[#2E7D79] font-bold' : 'hover:bg-white/10'
+            }`}
+            title="OTP & Google Auth"
+          >
+            <Lock className="w-3 h-3" />
+            <span>Auth</span>
+          </button>
+          <button
+            onClick={() => setCurrentStep('consent')}
+            className={`px-2 py-1 rounded-lg transition-colors text-[11px] flex items-center gap-1 ${
+              currentStep === 'consent' ? 'bg-[#2E7D79] font-bold' : 'hover:bg-white/10'
+            }`}
+            title="DPDP Act 2023 Consent"
+          >
+            <FileCheck className="w-3 h-3" />
+            <span>Consent</span>
           </button>
           <button
             onClick={() => {
@@ -138,6 +175,16 @@ export const AppShell: React.FC = () => {
             }`}
           >
             7. Privacy
+          </button>
+          <button
+            onClick={() => setCurrentStep('invite')}
+            className={`px-2 py-1 rounded-lg transition-colors text-[11px] flex items-center gap-1 ${
+              currentStep === 'invite' ? 'bg-[#2E7D79] font-bold' : 'hover:bg-white/10'
+            }`}
+            title="Invite Family Member"
+          >
+            <UserPlus className="w-3 h-3" />
+            <span>Invite</span>
           </button>
           <button
             onClick={() => setCurrentStep('simulator')}

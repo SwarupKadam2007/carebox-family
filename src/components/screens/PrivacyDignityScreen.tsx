@@ -10,13 +10,15 @@ import {
   FileText,
   Sliders,
   Trash2,
-  Download
+  Download,
+  UserPlus
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 export const PrivacyDignityScreen: React.FC = () => {
   const {
     setCurrentTab,
+    setCurrentStep,
     privacySettings,
     setPrivacySettings,
     familyMembers,
@@ -162,10 +164,20 @@ export const PrivacyDignityScreen: React.FC = () => {
           <h2 className="text-xs font-semibold text-[#8E9E9C] uppercase tracking-wider">
             Who can see this
           </h2>
-          <span className="text-xs text-[#2E7D79] font-medium flex items-center gap-1">
-            <Users className="w-3.5 h-3.5" />
-            <span>Family members (3 people)</span>
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[#597573] font-medium flex items-center gap-1">
+              <Users className="w-3.5 h-3.5 text-[#2E7D79]" />
+              <span>{familyMembers.length} people</span>
+            </span>
+            <button
+              onClick={() => setCurrentStep('invite')}
+              className="text-xs font-semibold text-[#1F4E4B] bg-[#E8F3F1] hover:bg-[#D4EAE7] px-2.5 py-1 rounded-full flex items-center gap-1 transition-colors"
+              title="Invite another family member"
+            >
+              <UserPlus className="w-3.5 h-3.5 text-[#2E7D79]" />
+              <span>+ Invite</span>
+            </button>
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl shadow-card border border-[#E5EAE9] divide-y divide-[#F0F4F3]">

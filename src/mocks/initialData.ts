@@ -1,5 +1,9 @@
 import { ParentProfile, DoseEvent, Medicine, FamilyMember, DoseSchedule, PrivacySettings } from '../types';
 
+/** Stable IDs used in demo/mock mode — replaced by real UUIDs from Supabase in prod */
+export const MOCK_PARENT_ID = 'parent-1';
+export const MOCK_FAMILY_ID = 'family-1';
+
 export const INITIAL_PARENT: ParentProfile = {
   id: 'parent-1',
   name: 'Kalyani Kadam',

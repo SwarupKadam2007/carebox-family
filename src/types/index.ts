@@ -67,4 +67,4 @@ export interface PrivacySettings {
 }
 
 export type ScreenTab = 'today' | 'history' | 'refills' | 'settings';
-export type AppFlowStep = 'welcome' | 'connect-box' | 'main' | 'simulator';
+export type AppFlowStep = 'welcome' | 'connect-box' | 'main' | 'simulator' | 'login' | 'consent' | 'invite';

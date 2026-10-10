@@ -1,0 +1,23 @@
+{
+  "name": "CareBox Family",
+  "short_name": "CareBox",
+  "description": "Smart one-touch medicine companion for elderly parents living independently.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FCF6EE",
+  "theme_color": "#1F4E4B",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "48x48 96x96",
+      "type": "image/svg+xml"
+    }
+  ]
+}
