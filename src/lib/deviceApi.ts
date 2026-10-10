@@ -37,7 +37,7 @@ export async function sendBoxButtonPress(
   }
 
   try {
-    const { data, error } = await supabase.functions.invoke('box-event', {
+    const { error } = await supabase.functions.invoke('box-event', {
       body: {
         action: 'dose_taken',
         box_id: boxId,
