@@ -48,3 +48,24 @@ export function canUserSendGentleNudge(
   if (!isFamilyMember || !role) return false;
   return true; // Any active family member can send a gentle reminder
 }
+
+export function canUserConnectBox(role: UserRole | null, isFamilyMember: boolean): boolean {
+  if (!isFamilyMember || !role) return false;
+  return role === 'admin';
+}
+
+export function canUserAccessSimulator(role: UserRole | null, isFamilyMember: boolean): boolean {
+  if (!isFamilyMember || !role) return false;
+  // Simulator triggers hardware actions -> restricted to admin/caregiver
+  return role === 'admin';
+}
+
+export function canUserAccessAdminRoutes(role: UserRole | null, isFamilyMember: boolean): boolean {
+  if (!isFamilyMember || !role) return false;
+  return role === 'admin';
+}
+
+export function canUserModifySharingPause(role: UserRole | null, isFamilyMember: boolean): boolean {
+  if (!isFamilyMember || !role) return false;
+  return role === 'admin';
+}

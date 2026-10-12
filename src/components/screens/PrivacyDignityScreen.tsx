@@ -14,6 +14,7 @@ import {
   UserPlus
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 
 export const PrivacyDignityScreen: React.FC = () => {
   const {
@@ -28,12 +29,26 @@ export const PrivacyDignityScreen: React.FC = () => {
     showToast,
   } = useApp();
 
+  const { userRole } = useAuth();
+
   const handleToggle = (key: keyof typeof privacySettings) => {
+    if (userRole !== 'admin') {
+      showToast('Permission denied: Only family admins can modify privacy preferences.');
+      return;
+    }
     setPrivacySettings((prev) => {
       const updated = { ...prev, [key]: !prev[key] };
       showToast(`Privacy preference updated.`);
       return updated;
     });
+  };
+
+  const handleSharingPauseToggle = () => {
+    if (userRole !== 'admin') {
+      showToast('Permission denied: Only family admins or Mom can toggle sharing.');
+      return;
+    }
+    toggleSharingPause();
   };
 
   return (
@@ -143,7 +158,7 @@ export const PrivacyDignityScreen: React.FC = () => {
             <button
               role="switch"
               aria-checked={!parent.sharingPaused}
-              onClick={toggleSharingPause}
+              onClick={handleSharingPauseToggle}
               className={`w-11 h-6 rounded-full transition-colors relative shrink-0 p-0.5 ${
                 !parent.sharingPaused ? 'bg-[#27A348]' : 'bg-[#C3CDCC]'
               }`}
@@ -170,7 +185,13 @@ export const PrivacyDignityScreen: React.FC = () => {
               <span>{familyMembers.length} people</span>
             </span>
             <button
-              onClick={() => setCurrentStep('invite')}
+              onClick={() => {
+                if (userRole !== 'admin') {
+                  showToast('Permission denied: Only family admins can invite members.');
+                  return;
+                }
+                setCurrentStep('invite');
+              }}
               className="text-xs font-semibold text-[#1F4E4B] bg-[#E8F3F1] hover:bg-[#D4EAE7] px-2.5 py-1 rounded-full flex items-center gap-1 transition-colors"
               title="Invite another family member"
             >
@@ -273,6 +294,10 @@ export const PrivacyDignityScreen: React.FC = () => {
 
           <button
             onClick={() => {
+              if (userRole !== 'admin') {
+                showToast('Permission denied: Only family admins can delete family accounts.');
+                return;
+              }
               if (window.confirm('Are you sure you want to delete your account and all medicine data?')) {
                 showToast('Account and personal data deleted.');
               }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Check, Camera, Edit2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { sanitizeText } from '../../lib/security';
 
 export const ConnectBoxScreen: React.FC = () => {
   const { setCurrentStep, setCurrentTab, parent, setParent, showToast } = useApp();
@@ -9,12 +10,13 @@ export const ConnectBoxScreen: React.FC = () => {
   const [step] = useState<number>(2); // 1 = scan, 2 = details, 3 = done
 
   const handleContinue = () => {
+    const cleanName = sanitizeText(parentName, 40) || 'Mom';
     setParent((prev) => ({
       ...prev,
-      relationName: parentName,
+      relationName: cleanName,
       boxConnected: true,
     }));
-    showToast(`CareBox connected for ${parentName}!`);
+    showToast(`CareBox connected for ${cleanName}!`);
     setCurrentStep('main');
     setCurrentTab('today');
   };

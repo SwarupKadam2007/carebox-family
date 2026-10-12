@@ -5,6 +5,10 @@ import {
   canUserManageMembers,
   canUserViewDoseEvents,
   canUserSendGentleNudge,
+  canUserConnectBox,
+  canUserAccessSimulator,
+  canUserAccessAdminRoutes,
+  canUserModifySharingPause,
 } from '../../src/lib/authRules';
 
 describe('RLS & Authorization Rules', () => {
@@ -19,6 +23,14 @@ describe('RLS & Authorization Rules', () => {
 
     it('blocks outsiders from editing medicines', () => {
       expect(canUserEditMedicines(null, false)).toBe(false);
+    });
+
+    it('blocks outsiders from connecting box', () => {
+      expect(canUserConnectBox(null, false)).toBe(false);
+    });
+
+    it('blocks outsiders from accessing simulator', () => {
+      expect(canUserAccessSimulator(null, false)).toBe(false);
     });
   });
 
@@ -36,6 +48,22 @@ describe('RLS & Authorization Rules', () => {
 
     it('proves viewer CANNOT manage or invite members', () => {
       expect(canUserManageMembers(role, isMember)).toBe(false);
+    });
+
+    it('proves viewer CANNOT connect new hardware box', () => {
+      expect(canUserConnectBox(role, isMember)).toBe(false);
+    });
+
+    it('proves viewer CANNOT access hardware simulator', () => {
+      expect(canUserAccessSimulator(role, isMember)).toBe(false);
+    });
+
+    it('proves viewer CANNOT access admin-only routes', () => {
+      expect(canUserAccessAdminRoutes(role, isMember)).toBe(false);
+    });
+
+    it('proves viewer CANNOT modify parent sharing pause', () => {
+      expect(canUserModifySharingPause(role, isMember)).toBe(false);
     });
 
     it('allows viewer to view dose events when sharing is active', () => {
@@ -61,6 +89,22 @@ describe('RLS & Authorization Rules', () => {
 
     it('allows admin to manage members', () => {
       expect(canUserManageMembers(role, isMember)).toBe(true);
+    });
+
+    it('allows admin to connect new hardware box', () => {
+      expect(canUserConnectBox(role, isMember)).toBe(true);
+    });
+
+    it('allows admin to access hardware simulator', () => {
+      expect(canUserAccessSimulator(role, isMember)).toBe(true);
+    });
+
+    it('allows admin to access admin routes', () => {
+      expect(canUserAccessAdminRoutes(role, isMember)).toBe(true);
+    });
+
+    it('allows admin to modify parent sharing pause', () => {
+      expect(canUserModifySharingPause(role, isMember)).toBe(true);
     });
 
     it('allows admin to view dose events even when sharing is paused', () => {

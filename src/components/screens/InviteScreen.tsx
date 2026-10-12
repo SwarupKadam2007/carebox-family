@@ -9,10 +9,12 @@ import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { inviteFamilyMember } from '../../lib/dataService';
 import { MOCK_FAMILY_ID } from '../../mocks/initialData';
+import { sanitizeEmail, sanitizeRole, globalClientRateLimiter } from '../../lib/security';
+import { canUserManageMembers } from '../../lib/authRules';
 
 const InviteScreen: React.FC = () => {
   const { familyMembers, parent, showToast, setCurrentStep, setCurrentTab } = useApp();
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
 
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<'admin' | 'viewer'>('viewer');
@@ -22,10 +24,25 @@ const InviteScreen: React.FC = () => {
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+
+    if (!canUserManageMembers(userRole, true)) {
+      setError('Access denied: Only family admins can invite members.');
+      return;
+    }
+
+    if (!globalClientRateLimiter.canExecute('invite_member', 1500)) {
+      setError('Please wait a moment before sending another invite.');
+      return;
+    }
+
+    const { isValid, sanitized: cleanEmail } = sanitizeEmail(email);
+    if (!isValid) {
       setError('Please enter a valid email address.');
       return;
     }
+
+    const cleanRole = sanitizeRole(role) || 'viewer';
+
     setIsSubmitting(true);
     setError(null);
 
@@ -33,15 +50,15 @@ const InviteScreen: React.FC = () => {
     const { error: inviteError } = await inviteFamilyMember(
       MOCK_FAMILY_ID,
       inviterName,
-      email,
-      role
+      cleanEmail,
+      cleanRole
     );
 
     if (inviteError) {
       setError(inviteError);
     } else {
       setInviteSent(true);
-      showToast(`Invitation sent to ${email} as ${role}.`);
+      showToast(`Invitation sent to ${cleanEmail} as ${cleanRole}.`);
     }
     setIsSubmitting(false);
   };

@@ -12,6 +12,7 @@ import {
   INITIAL_PRIVACY_SETTINGS,
 } from '../mocks/initialData';
 import type { DoseEvent, Medicine, FamilyMember, ParentProfile, DoseSchedule, Slot } from '../types';
+import { sanitizeText, sanitizeEmail, sanitizeSlot, sanitizeRole } from './security';
 
 // ─── Read: Today's Dose Events ────────────────────────────────────────────────
 export async function fetchTodayDoseEvents(parentId: string): Promise<DoseEvent[]> {
@@ -44,13 +45,17 @@ export async function insertDoseEvent(
   slot: Slot,
   source: 'box' | 'manual' | 'simulator' = 'manual'
 ): Promise<{ id: string | null; error: string | null }> {
+  const safeSlot = sanitizeSlot(slot);
+  if (!safeSlot) return { id: null, error: 'Invalid slot' };
+  const safeSource = source === 'box' || source === 'manual' || source === 'simulator' ? source : 'manual';
+
   if (!IS_SUPABASE_CONFIGURED) {
-    return { id: `mock-evt-${slot}-${Date.now()}`, error: null };
+    return { id: `mock-evt-${safeSlot}-${Date.now()}`, error: null };
   }
 
   const { data, error } = await supabase
     .from('dose_events')
-    .insert({ parent_id: parentId, slot, source } as any)
+    .insert({ parent_id: parentId, slot: safeSlot, source: safeSource } as any)
     .select('id')
     .single();
 
@@ -193,13 +198,17 @@ export async function insertReminder(
   type: 'reminder' | 'call',
   sentBy: string
 ): Promise<{ id: string | null; error: string | null }> {
+  const safeSlot = sanitizeSlot(slot);
+  if (!safeSlot) return { id: null, error: 'Invalid slot' };
+  const safeType = type === 'reminder' || type === 'call' ? type : 'reminder';
+
   if (!IS_SUPABASE_CONFIGURED) {
     return { id: `mock-reminder-${Date.now()}`, error: null };
   }
 
   const { data, error } = await supabase
     .from('reminders')
-    .insert({ parent_id: parentId, slot, type, sent_by: sentBy } as any)
+    .insert({ parent_id: parentId, slot: safeSlot, type: safeType, sent_by: sentBy } as any)
     .select('id')
     .single();
 
@@ -218,21 +227,27 @@ export async function inviteFamilyMember(
   inviteeEmail: string,
   role: 'admin' | 'viewer' = 'viewer'
 ): Promise<{ error: string | null }> {
+  const { isValid, sanitized: safeEmail } = sanitizeEmail(inviteeEmail);
+  if (!isValid) return { error: 'Invalid email address' };
+
+  const safeRole = sanitizeRole(role) || 'viewer';
+  const safeInviter = sanitizeText(inviterName, 50) || 'A family member';
+
   if (!IS_SUPABASE_CONFIGURED) {
-    console.log(`[CareBox] Demo: would invite ${inviteeEmail} as ${role} to family ${familyId}`);
+    console.log(`[CareBox] Demo: would invite ${safeEmail} as ${safeRole} to family ${familyId}`);
     return { error: null };
   }
 
   // Step 1: Send invitation magic link via Supabase Auth
   const { error: inviteError } = await supabase.auth.signInWithOtp({
-    email: inviteeEmail,
+    email: safeEmail,
     options: {
-      emailRedirectTo: `${window.location.origin}/auth/callback?family_id=${familyId}&role=${role}`,
+      emailRedirectTo: `${window.location.origin}/auth/callback?family_id=${familyId}&role=${safeRole}`,
       shouldCreateUser: true,
       data: {
-        invited_by: inviterName,
+        invited_by: safeInviter,
         family_id: familyId,
-        role,
+        role: safeRole,
       },
     },
   });

@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import LoginScreen from '../../src/components/screens/LoginScreen';
 import ConsentScreen from '../../src/components/screens/ConsentScreen';
 import InviteScreen from '../../src/components/screens/InviteScreen';
+import { AppShell } from '../../src/components/layout/AppShell';
 import { AuthProvider } from '../../src/context/AuthContext';
 import { AppProvider } from '../../src/context/AppContext';
 
@@ -78,5 +79,26 @@ describe('Phase 3 Screens: Auth, Consent, and Family Invitation', () => {
     fireEvent.click(submitBtn);
 
     expect(await screen.findByText('Invitation sent!')).toBeInTheDocument();
+  });
+
+  it('blocks viewers from accessing admin screens in AppShell and displays Admin Access Required', () => {
+    render(
+      <AuthProvider>
+        <AppProvider>
+          <AppShell />
+        </AppProvider>
+      </AuthProvider>
+    );
+
+    // Switch to Viewer role
+    const roleButton = screen.getByTitle(/Toggle RBAC Role/i);
+    fireEvent.click(roleButton); // Switches from Admin to Viewer
+
+    // Click Invite button
+    const inviteButton = screen.getByTitle(/Invite Family Member/i);
+    fireEvent.click(inviteButton);
+
+    expect(screen.getByText('Admin Access Required')).toBeInTheDocument();
+    expect(screen.getByText(/Only family admins have permission/i)).toBeInTheDocument();
   });
 });

@@ -8,6 +8,7 @@ import { Pill, Heart, Mail, ArrowRight, Loader2, Shield, Smartphone } from 'luci
 import { signInWithEmailOTP, verifyEmailOTP, signInWithGoogle } from '../../lib/authService';
 import { useAuth } from '../../context/AuthContext';
 import { IS_SUPABASE_CONFIGURED } from '../../lib/supabase';
+import { sanitizeEmail, globalClientRateLimiter } from '../../lib/security';
 
 type LoginStep = 'entry' | 'otp' | 'loading';
 
@@ -30,10 +31,17 @@ const LoginScreen: React.FC = () => {
     e.preventDefault();
     setError(null);
 
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!globalClientRateLimiter.canExecute('send_otp', 2000)) {
+      setError('Please wait a moment before requesting another code.');
+      return;
+    }
+
+    const { isValid, sanitized } = sanitizeEmail(email);
+    if (!isValid) {
       setError('Please enter a valid email address.');
       return;
     }
+    const cleanEmail = sanitized;
 
     if (!IS_SUPABASE_CONFIGURED) {
       // Demo mode: skip to OTP verify screen with fake token
@@ -42,7 +50,7 @@ const LoginScreen: React.FC = () => {
     }
 
     setLoginStep('loading');
-    const { error: sendError } = await signInWithEmailOTP(email);
+    const { error: sendError } = await signInWithEmailOTP(cleanEmail);
     if (sendError) {
       setError(sendError);
       setLoginStep('entry');
@@ -53,8 +61,8 @@ const LoginScreen: React.FC = () => {
 
   const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
-    const token = otpDigits.join('');
-    if (token.length < 6) {
+    const cleanToken = otpDigits.join('').replace(/\D/g, '').slice(0, 6);
+    if (cleanToken.length < 6) {
       setError('Please enter all 6 digits.');
       return;
     }
@@ -67,7 +75,8 @@ const LoginScreen: React.FC = () => {
       return;
     }
 
-    const { error: verifyError } = await verifyEmailOTP(email, token);
+    const { sanitized: cleanEmail } = sanitizeEmail(email);
+    const { error: verifyError } = await verifyEmailOTP(cleanEmail, cleanToken);
     if (verifyError) {
       setError(verifyError);
       setLoginStep('otp');

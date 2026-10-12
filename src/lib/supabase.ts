@@ -3,16 +3,13 @@
  * Falls back gracefully when env variables are missing (Phase 1 mock mode)
  */
 import { createClient } from '@supabase/supabase-js';
+import { ENV, IS_SUPABASE_CONFIGURED } from './env';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
-
-// Feature flag: true when credentials exist (Phase 3+), false = mock-only mode (Phase 1)
-export const IS_SUPABASE_CONFIGURED = Boolean(supabaseUrl && supabaseAnonKey);
+export { IS_SUPABASE_CONFIGURED };
 
 export const supabase = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-anon-key',
+  ENV.SUPABASE_URL || 'https://placeholder.supabase.co',
+  ENV.SUPABASE_ANON_KEY || 'placeholder-anon-key',
   {
     auth: {
       autoRefreshToken: true,

@@ -21,6 +21,8 @@ interface AuthContextType {
   setAuthStep: (step: AuthStep) => void;
   isDemoMode: boolean;
   signOutUser: () => Promise<void>;
+  userRole: 'admin' | 'viewer';
+  setUserRole: (role: 'admin' | 'viewer') => void;
   consentsAccepted: { terms: boolean; privacy: boolean; medicineData: boolean };
   setConsentsAccepted: React.Dispatch<React.SetStateAction<{
     terms: boolean;
@@ -45,6 +47,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [authStep, setAuthStep] = useState<AuthStep>('splash');
+  const [userRole, setUserRole] = useState<'admin' | 'viewer'>('admin');
   const [consentsAccepted, setConsentsAccepted] = useState({
     terms: false,
     privacy: false,
@@ -58,16 +61,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isDemoMode) {
       const timer = setTimeout(() => {
         setUser(DEMO_USER);
+        setUserRole('admin');
         setAuthStep('auth'); // Still show auth screen for demo flow
       }, 1500);
       return () => clearTimeout(timer);
     }
 
     // Check existing session
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       if (data.session) {
         setUser(data.session.user);
         setSession(data.session);
+
+        // Fetch user's role from members table for active family (least-privilege default: 'viewer')
+        try {
+          const { data: memberRow } = await supabase
+            .from('members')
+            .select('role')
+            .eq('user_id', data.session.user.id)
+            .eq('status', 'active')
+            .limit(1)
+            .single();
+
+          if (memberRow?.role === 'admin') {
+            setUserRole('admin');
+          } else {
+            setUserRole('viewer');
+          }
+        } catch {
+          setUserRole('viewer');
+        }
+
         // Check if consents exist to skip consent screen
         setAuthStep('ready');
       } else {
@@ -77,10 +101,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, newSession) => {
+      async (_event, newSession) => {
         setUser(newSession?.user ?? null);
         setSession(newSession);
         if (newSession) {
+          try {
+            const { data: memberRow } = await supabase
+              .from('members')
+              .select('role')
+              .eq('user_id', newSession.user.id)
+              .eq('status', 'active')
+              .limit(1)
+              .single();
+
+            setUserRole(memberRow?.role === 'admin' ? 'admin' : 'viewer');
+          } catch {
+            setUserRole('viewer');
+          }
           setAuthStep('ready');
         } else {
           setAuthStep('auth');
@@ -95,6 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await signOut();
     setUser(null);
     setSession(null);
+    setUserRole('viewer');
     setAuthStep('auth');
     setConsentsAccepted({ terms: false, privacy: false, medicineData: false });
   }, []);
@@ -107,6 +145,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAuthStep,
       isDemoMode,
       signOutUser,
+      userRole,
+      setUserRole,
       consentsAccepted,
       setConsentsAccepted,
     }}>
@@ -125,6 +165,8 @@ export const useAuth = (): AuthContextType => {
       setAuthStep: () => {},
       isDemoMode: true,
       signOutUser: async () => {},
+      userRole: 'admin',
+      setUserRole: () => {},
       consentsAccepted: { terms: true, privacy: true, medicineData: true },
       setConsentsAccepted: () => {},
     };
