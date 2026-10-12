@@ -3,9 +3,8 @@
 > **Small button. Big peace of mind.**
 > The calm medicine companion for elderly parents living independently and the adult children who care for them.
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/SwarupKadam2007)
-[![Tests](https://img.shields.io/badge/tests-30%20passing-brightgreen)](https://github.com/SwarupKadam2007)
-[![PWA Ready](https://img.shields.io/badge/PWA-installable-teal)](https://github.com/SwarupKadam2007)
+[![CI](https://github.com/SwarupKadam2007/carebox-family/actions/workflows/ci.yml/badge.svg)](https://github.com/SwarupKadam2007/carebox-family/actions/workflows/ci.yml)
+[![PWA Ready](https://img.shields.io/badge/PWA-installable-teal)](https://github.com/SwarupKadam2007/carebox-family)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 ---

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ArrowLeft, ChevronRight, ShoppingBag, Bell, Pill, ExternalLink } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Medicine } from '../../types';
+import { EmptyState } from '../common/EmptyState';
 
 export const RefillsScreen: React.FC = () => {
   const { setCurrentTab, medicines, showToast } = useApp();
@@ -33,47 +34,55 @@ export const RefillsScreen: React.FC = () => {
 
       {/* Medicine Cards List matching Screen 6 */}
       <div className="space-y-3 mb-6">
-        {medicines.map((med) => {
-          const isLow = med.daysLeft <= 5;
+        {medicines.length === 0 ? (
+          <EmptyState
+            icon={Pill}
+            title="No Prescriptions Added"
+            description="Add daily medications to track remaining pills and receive automatic refill warnings."
+          />
+        ) : (
+          medicines.map((med) => {
+            const isLow = med.daysLeft <= 5;
 
-          return (
-            <div
-              key={med.id}
-              onClick={() => setSelectedMed(med)}
-              className="bg-white rounded-2xl p-4 shadow-card border border-[#E5EAE9] flex items-center justify-between cursor-pointer hover:border-[#2E7D79]/30 transition-all active:scale-[0.99]"
-            >
-              <div className="flex items-center gap-3.5">
-                <div
-                  className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
-                    isLow ? 'bg-[#FEF7EC] text-[#F2B33D]' : 'bg-[#EBF7EE] text-[#27A348]'
-                  }`}
-                >
-                  <Pill className="w-5 h-5" />
+            return (
+              <div
+                key={med.id}
+                onClick={() => setSelectedMed(med)}
+                className="bg-white rounded-2xl p-4 shadow-card border border-[#E5EAE9] flex items-center justify-between cursor-pointer hover:border-[#2E7D79]/30 transition-all active:scale-[0.99]"
+              >
+                <div className="flex items-center gap-3.5">
+                  <div
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                      isLow ? 'bg-[#FEF7EC] text-[#F2B33D]' : 'bg-[#EBF7EE] text-[#27A348]'
+                    }`}
+                  >
+                    <Pill className="w-5 h-5" />
+                  </div>
+
+                  <div>
+                    <h3 className="font-heading font-semibold text-sm text-[#1F4E4B]">
+                      {med.name}
+                    </h3>
+                    <p className="text-xs text-[#597573] mt-0.5">
+                      {med.dosage}
+                    </p>
+                  </div>
                 </div>
 
-                <div>
-                  <h3 className="font-heading font-semibold text-sm text-[#1F4E4B]">
-                    {med.name}
-                  </h3>
-                  <p className="text-xs text-[#597573] mt-0.5">
-                    {med.dosage}
-                  </p>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-xs font-semibold ${
+                      isLow ? 'text-[#D89825]' : 'text-[#27A348]'
+                    }`}
+                  >
+                    {med.daysLeft} days left
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-[#C3CDCC]" />
                 </div>
               </div>
-
-              <div className="flex items-center gap-2">
-                <span
-                  className={`text-xs font-semibold ${
-                    isLow ? 'text-[#D89825]' : 'text-[#27A348]'
-                  }`}
-                >
-                  {med.daysLeft} days left
-                </span>
-                <ChevronRight className="w-4 h-4 text-[#C3CDCC]" />
-              </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
 
       {/* Action Buttons matching Screen 6 */}

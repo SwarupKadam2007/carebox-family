@@ -2,12 +2,17 @@ import React, { useState } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, BarChart2, Share2, Check, Copy } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { INITIAL_WEEK_MATRIX } from '../../mocks/initialData';
+import { LoadingState } from '../common/LoadingState';
 
 export const HistoryScreen: React.FC = () => {
-  const { setCurrentTab, parent, showToast } = useApp();
+  const { setCurrentTab, parent, isLoading, showToast } = useApp();
   const [viewMode, setViewMode] = useState<'weekly' | 'monthly'>('weekly');
   const [showShareModal, setShowShareModal] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  if (isLoading && !parent) {
+    return <LoadingState message="Loading adherence history..." className="min-h-[400px]" />;
+  }
 
   const doctorReportText = `CAREBOX FAMILY — MEDICATION ADHERENCE SUMMARY
 Patient: ${parent.name} (${parent.relationName})

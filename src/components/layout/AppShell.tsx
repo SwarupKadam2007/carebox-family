@@ -28,6 +28,7 @@ import {
   Eye
 } from 'lucide-react';
 import { ENV } from '../../lib/env';
+import { DemoModeBanner } from './DemoModeBanner';
 
 export const AppShell: React.FC = () => {
   const {
@@ -287,6 +288,9 @@ export const AppShell: React.FC = () => {
           </button>
         </div>
       </header>
+
+      {/* DEMO MODE BANNER (When Supabase is disconnected) */}
+      {isDemoMode && <DemoModeBanner />}
 
       {/* FLOATING TOAST NOTIFICATION */}
       {toastMessage && (

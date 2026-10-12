@@ -2,11 +2,13 @@ import React from 'react';
 import { Sun, Sunset, Moon, Check, EyeOff, Bell } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Slot } from '../../types';
+import { LoadingState } from '../common/LoadingState';
 
 export const TodayScreen: React.FC = () => {
   const {
     parent,
     doseEvents,
+    isLoading,
     getSlotStatus,
     confirmDose,
     setNudgeModalOpen,
@@ -14,6 +16,10 @@ export const TodayScreen: React.FC = () => {
     callLogged,
     setCurrentStep,
   } = useApp();
+
+  if (isLoading && !parent) {
+    return <LoadingState message="Connecting to CareBox..." className="min-h-[400px]" />;
+  }
 
   const morningStatus = getSlotStatus('morning');
   const afternoonStatus = getSlotStatus('afternoon');
