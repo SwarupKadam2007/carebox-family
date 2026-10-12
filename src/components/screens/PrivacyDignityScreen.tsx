@@ -11,10 +11,12 @@ import {
   Sliders,
   Trash2,
   Download,
-  UserPlus
+  UserPlus,
+  LogOut
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
+import { deleteUserAccount, exportUserData, signOut } from '../../lib/authService';
 
 export const PrivacyDignityScreen: React.FC = () => {
   const {
@@ -29,7 +31,7 @@ export const PrivacyDignityScreen: React.FC = () => {
     showToast,
   } = useApp();
 
-  const { userRole } = useAuth();
+  const { userRole, user } = useAuth();
 
   const handleToggle = (key: keyof typeof privacySettings) => {
     if (userRole !== 'admin') {
@@ -274,14 +276,15 @@ export const PrivacyDignityScreen: React.FC = () => {
           </button>
 
           <button
-            onClick={() => {
-              const dataBlob = JSON.stringify({ parent, familyMembers, privacySettings }, null, 2);
+            onClick={async () => {
+              const { data } = await exportUserData(user?.id ?? 'usr-1');
+              const dataBlob = JSON.stringify(data ?? { parent, familyMembers, privacySettings }, null, 2);
               const url = URL.createObjectURL(new Blob([dataBlob], { type: 'application/json' }));
               const a = document.createElement('a');
               a.href = url;
-              a.download = `carebox_data_export_${Date.now()}.json`;
+              a.download = `carebox_dpdp_export_${Date.now()}.json`;
               a.click();
-              showToast('Data exported successfully.');
+              showToast('Personal data exported successfully (DPDP 2023).');
             }}
             className="w-full p-3.5 flex items-center justify-between hover:bg-gray-50 text-left transition-colors"
           >
@@ -293,13 +296,34 @@ export const PrivacyDignityScreen: React.FC = () => {
           </button>
 
           <button
-            onClick={() => {
+            onClick={async () => {
+              await signOut();
+              showToast('Signed out successfully.');
+              window.location.reload();
+            }}
+            className="w-full p-3.5 flex items-center justify-between hover:bg-gray-50 text-left transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <LogOut className="w-4 h-4 text-[#2E7D79]" />
+              <span className="text-xs font-medium text-[#1F4E4B]">Sign out</span>
+            </div>
+            <ChevronRight className="w-4 h-4 text-[#C3CDCC]" />
+          </button>
+
+          <button
+            onClick={async () => {
               if (userRole !== 'admin') {
                 showToast('Permission denied: Only family admins can delete family accounts.');
                 return;
               }
-              if (window.confirm('Are you sure you want to delete your account and all medicine data?')) {
-                showToast('Account and personal data deleted.');
+              if (window.confirm('Are you sure you want to delete your account and all medicine data? This will permanently remove your health records under India DPDP Act 2023.')) {
+                const { error } = await deleteUserAccount();
+                if (error) {
+                  showToast(`Deletion failed: ${error}`);
+                } else {
+                  showToast('Account and personal data deleted.');
+                  window.location.reload();
+                }
               }
             }}
             className="w-full p-3.5 flex items-center justify-between hover:bg-gray-50 text-left transition-colors text-amber-700"

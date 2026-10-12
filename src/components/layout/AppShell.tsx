@@ -61,6 +61,7 @@ export const AppShell: React.FC = () => {
     if (!isDemoMode) {
       if (authStep === 'auth' || !user) return <LoginScreen />;
       if (authStep === 'consent') return <ConsentScreen />;
+      if (authStep === 'onboarding') return <OnboardingScreen />;
     }
 
     // 2. Admin Route Protection (RBAC)

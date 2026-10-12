@@ -6,12 +6,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase, IS_SUPABASE_CONFIGURED } from '../lib/supabase';
-import { signOut } from '../lib/authService';
+import { signOut, checkUserConsents } from '../lib/authService';
 
 export type AuthStep =
   | 'splash'        // Initial loading
   | 'auth'          // Login / Sign-up screen
   | 'consent'       // Terms & Privacy consent (first-time only)
+  | 'onboarding'    // Role selection & family setup
   | 'ready';        // Authenticated & consented — show main app
 
 interface AuthContextType {
@@ -67,33 +68,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return () => clearTimeout(timer);
     }
 
+    // Helper to evaluate user state (consents -> family -> ready)
+    const evaluateUserState = async (currentUser: User) => {
+      // 1. Check mandatory DPDP consents
+      const hasConsents = await checkUserConsents(currentUser.id);
+      if (!hasConsents) {
+        setAuthStep('consent');
+        return;
+      }
+
+      // 2. Fetch role and active family membership
+      try {
+        const { data: memberRow } = await supabase
+          .from('members')
+          .select('role, family_id')
+          .eq('user_id', currentUser.id)
+          .eq('status', 'active')
+          .limit(1)
+          .single();
+
+        if (memberRow) {
+          setUserRole(memberRow.role === 'admin' ? 'admin' : 'viewer');
+          setAuthStep('ready');
+        } else {
+          // User authenticated & consented, but has not set up or joined a family yet
+          setAuthStep('onboarding');
+        }
+      } catch {
+        setAuthStep('onboarding');
+      }
+    };
+
     // Check existing session
     supabase.auth.getSession().then(async ({ data }) => {
       if (data.session) {
         setUser(data.session.user);
         setSession(data.session);
-
-        // Fetch user's role from members table for active family (least-privilege default: 'viewer')
-        try {
-          const { data: memberRow } = await supabase
-            .from('members')
-            .select('role')
-            .eq('user_id', data.session.user.id)
-            .eq('status', 'active')
-            .limit(1)
-            .single();
-
-          if (memberRow?.role === 'admin') {
-            setUserRole('admin');
-          } else {
-            setUserRole('viewer');
-          }
-        } catch {
-          setUserRole('viewer');
-        }
-
-        // Check if consents exist to skip consent screen
-        setAuthStep('ready');
+        await evaluateUserState(data.session.user);
       } else {
         setAuthStep('auth');
       }
@@ -104,21 +115,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       async (_event, newSession) => {
         setUser(newSession?.user ?? null);
         setSession(newSession);
-        if (newSession) {
-          try {
-            const { data: memberRow } = await supabase
-              .from('members')
-              .select('role')
-              .eq('user_id', newSession.user.id)
-              .eq('status', 'active')
-              .limit(1)
-              .single();
-
-            setUserRole(memberRow?.role === 'admin' ? 'admin' : 'viewer');
-          } catch {
-            setUserRole('viewer');
-          }
-          setAuthStep('ready');
+        if (newSession?.user) {
+          await evaluateUserState(newSession.user);
         } else {
           setAuthStep('auth');
         }

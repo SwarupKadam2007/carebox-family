@@ -112,3 +112,104 @@ export async function recordConsent(
 
   return { error: error?.message ?? null };
 }
+
+/** Check if user has accepted mandatory 3-point DPDP consents */
+export async function checkUserConsents(userId: string): Promise<boolean> {
+  if (!IS_SUPABASE_CONFIGURED) return true;
+
+  const { data, error } = await supabase
+    .from('consents')
+    .select('document')
+    .eq('user_id', userId);
+
+  if (error || !data) return false;
+
+  const acceptedDocs = new Set(data.map((d: any) => d.document));
+  return (
+    acceptedDocs.has('terms') &&
+    acceptedDocs.has('privacy') &&
+    acceptedDocs.has('medicine_data')
+  );
+}
+
+/** Atomic onboarding RPC call creating family, parent, and schedule */
+export async function onboardNewFamily(
+  familyName: string,
+  parentName: string,
+  role: 'parent' | 'admin' = 'admin',
+  relation: string = 'Mom'
+): Promise<{ data: any | null; error: string | null }> {
+  if (!IS_SUPABASE_CONFIGURED) {
+    return {
+      data: {
+        family_id: 'family-1',
+        parent_id: 'parent-1',
+        box_id: 'box-1',
+        pairing_code: '884210',
+        role,
+      },
+      error: null,
+    };
+  }
+
+  const { data, error } = await (supabase.rpc as any)('onboard_family', {
+    p_family_name: familyName,
+    p_parent_name: parentName,
+    p_user_role: role,
+    p_relation: relation,
+  });
+
+  return { data, error: error?.message ?? null };
+}
+
+/** Complete Account Deletion (DPDP Act 2023 Right to Erasure) */
+export async function deleteUserAccount(): Promise<{ error: string | null }> {
+  if (!IS_SUPABASE_CONFIGURED) {
+    return { error: null };
+  }
+
+  const { error } = await (supabase.rpc as any)('delete_user_account');
+  if (error) return { error: error.message };
+
+  await signOut();
+  return { error: null };
+}
+
+/** Export all personal health and family data in JSON format (DPDP Data Portability) */
+export async function exportUserData(userId: string): Promise<{ data: any | null; error: string | null }> {
+  if (!IS_SUPABASE_CONFIGURED) {
+    return {
+      data: {
+        userId,
+        exportedAt: new Date().toISOString(),
+        format: 'CareBox Family DPDP Data Archive v1.0',
+        note: 'Mock export in demo environment',
+      },
+      error: null,
+    };
+  }
+
+  try {
+    const [profileRes, consentsRes, membershipsRes, notifsRes] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', userId).single(),
+      supabase.from('consents').select('*').eq('user_id', userId),
+      supabase.from('members').select('*, families(*)').eq('user_id', userId),
+      supabase.from('notifications').select('*').eq('user_id', userId),
+    ]);
+
+    const archive = {
+      user_id: userId,
+      exported_at: new Date().toISOString(),
+      profile: profileRes.data,
+      consents: consentsRes.data,
+      memberships: membershipsRes.data,
+      notifications: notifsRes.data,
+      standard: 'Digital Personal Data Protection Act 2023 (India)',
+    };
+
+    return { data: archive, error: null };
+  } catch (err: any) {
+    return { data: null, error: err?.message ?? 'Failed to export data' };
+  }
+}
+
