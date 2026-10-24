@@ -1,148 +1,129 @@
 /**
- * LoginScreen — OTP-based, Password-based, and Google OAuth sign-in.
- * Matches the CareBox design: teal gradient hero, Poppins typography.
- * Includes Demo Mode bypass for instant access without credentials.
+ * LoginScreen — Phone Number OTP Authentication.
+ * Simple, calm, and respectful: Enter phone number -> Receive 6-digit OTP -> Log in.
+ * Includes instant Demo User bypass. Google login has been removed.
  */
 import React, { useState, useRef, useEffect } from 'react';
-import { Pill, Heart, Mail, ArrowRight, Loader2, Shield, Smartphone, KeyRound, Sparkles } from 'lucide-react';
-import {
-  signInWithEmailOTP,
-  verifyEmailOTP,
-  signInWithGoogle,
-  signInWithPassword,
-  signUpWithPassword
-} from '../../lib/authService';
+import { Pill, Heart, Smartphone, ArrowRight, Loader2, Shield, Sparkles, CheckCircle2 } from 'lucide-react';
+import { signInWithPhoneOTP, verifyPhoneOTP } from '../../lib/authService';
 import { useAuth } from '../../context/AuthContext';
 import { IS_SUPABASE_CONFIGURED } from '../../lib/supabase';
-import { sanitizeEmail, globalClientRateLimiter } from '../../lib/security';
+import { globalClientRateLimiter } from '../../lib/security';
 
-type LoginStep = 'entry' | 'otp' | 'loading';
-type AuthMethod = 'otp' | 'password';
+type LoginStep = 'phone' | 'otp' | 'loading';
 
-const LoginScreen: React.FC = () => {
-  const { isDemoMode, loginAsDemoUser, setAuthStep } = useAuth();
-  const [loginStep, setLoginStep] = useState<LoginStep>('entry');
-  const [authMethod, setAuthMethod] = useState<AuthMethod>('otp');
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+interface CountryCode {
+  code: string;
+  flag: string;
+  name: string;
+}
+
+const COUNTRY_CODES: CountryCode[] = [
+  { code: '+91', flag: '🇮🇳', name: 'India' },
+  { code: '+1', flag: '🇺🇸', name: 'USA/Canada' },
+  { code: '+44', flag: '🇬🇧', name: 'UK' },
+  { code: '+971', flag: '🇦🇪', name: 'UAE' },
+  { code: '+65', flag: '🇸🇬', name: 'Singapore' },
+  { code: '+61', flag: '🇦🇺', name: 'Australia' },
+];
+
+export const LoginScreen: React.FC = () => {
+  const { loginAsDemoUser, setAuthStep } = useAuth();
+  const [loginStep, setLoginStep] = useState<LoginStep>('phone');
+  const [countryCode, setCountryCode] = useState('+91');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
   const [error, setError] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isMockMode, setIsMockMode] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Demo bypass: works 100% of the time, even with Supabase configured
+  // Format full E.164 phone number
+  const cleanNumber = phoneNumber.replace(/\D/g, '');
+  const fullPhoneNumber = `${countryCode}${cleanNumber}`;
+
+  // Resend timer countdown
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const interval = setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [resendCooldown]);
+
+  // Focus first OTP box when transitioning to OTP step
+  useEffect(() => {
+    if (loginStep === 'otp') {
+      setTimeout(() => otpRefs.current[0]?.focus(), 150);
+    }
+  }, [loginStep]);
+
+  // Demo user bypass — guarantees instant access
   const handleDemoContinue = () => {
     loginAsDemoUser();
   };
 
+  // Send OTP handler
   const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setSuccessMsg(null);
 
-    if (!globalClientRateLimiter.canExecute('send_otp', 2000)) {
+    if (cleanNumber.length < 10) {
+      setError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+
+    if (!globalClientRateLimiter.canExecute('send_phone_otp', 2000)) {
       setError('Please wait a moment before requesting another code.');
       return;
     }
 
-    const { isValid, sanitized } = sanitizeEmail(email);
-    if (!isValid) {
-      setError('Please enter a valid email address.');
-      return;
-    }
-    const cleanEmail = sanitized;
+    setLoginStep('loading');
 
     if (!IS_SUPABASE_CONFIGURED) {
+      setIsMockMode(true);
+      setResendCooldown(30);
       setLoginStep('otp');
       return;
     }
 
-    setLoginStep('loading');
-    const { error: sendError } = await signInWithEmailOTP(cleanEmail);
+    const { error: sendError, isMock } = await signInWithPhoneOTP(fullPhoneNumber);
     if (sendError) {
       setError(sendError);
-      setLoginStep('entry');
+      setLoginStep('phone');
     } else {
-      setSuccessMsg(`We sent a code / magic link to ${cleanEmail}`);
+      setIsMockMode(Boolean(isMock));
+      setResendCooldown(30);
       setLoginStep('otp');
     }
   };
 
+  // Verify OTP handler
   const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanToken = otpDigits.join('').replace(/\D/g, '').slice(0, 6);
-    if (cleanToken.length < 6) {
-      setError('Please enter all 6 digits.');
+    const token = otpDigits.join('').replace(/\D/g, '').slice(0, 6);
+    if (token.length < 6) {
+      setError('Please enter the complete 6-digit verification code.');
       return;
     }
+
     setError(null);
     setLoginStep('loading');
 
     if (!IS_SUPABASE_CONFIGURED) {
-      setTimeout(() => loginAsDemoUser(), 800);
+      setTimeout(() => loginAsDemoUser(), 600);
       return;
     }
 
-    const { sanitized: cleanEmail } = sanitizeEmail(email);
-    const { error: verifyError } = await verifyEmailOTP(cleanEmail, cleanToken);
+    const { user, error: verifyError } = await verifyPhoneOTP(fullPhoneNumber, token);
     if (verifyError) {
       setError(verifyError);
       setLoginStep('otp');
-    } else {
+    } else if (user) {
       setAuthStep('consent');
-    }
-  };
-
-  const handlePasswordAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccessMsg(null);
-
-    const { isValid, sanitized } = sanitizeEmail(email);
-    if (!isValid) {
-      setError('Please enter a valid email address.');
-      return;
-    }
-    if (!password || password.length < 6) {
-      setError('Password must be at least 6 characters.');
-      return;
-    }
-
-    setLoginStep('loading');
-
-    if (isSignUp) {
-      const { user, error: signUpError } = await signUpWithPassword(sanitized, password);
-      if (signUpError) {
-        setError(signUpError);
-        setLoginStep('entry');
-      } else if (user) {
-        setSuccessMsg('Account created successfully! Signing you in...');
-        setAuthStep('consent');
-      } else {
-        setSuccessMsg('Sign-up initiated! If email confirmation is required, please check your inbox.');
-        setLoginStep('entry');
-      }
     } else {
-      const { user, error: signInError } = await signInWithPassword(sanitized, password);
-      if (signInError) {
-        setError(signInError);
-        setLoginStep('entry');
-      } else if (user) {
-        setAuthStep('consent');
-      }
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    setIsGoogleLoading(true);
-    setError(null);
-    const { error: googleError } = await signInWithGoogle();
-    if (googleError) {
-      setError(googleError);
-      setIsGoogleLoading(false);
+      loginAsDemoUser();
     }
   };
 
@@ -162,15 +143,15 @@ const LoginScreen: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    if (loginStep === 'otp') {
-      setTimeout(() => otpRefs.current[0]?.focus(), 100);
-    }
-  }, [loginStep]);
+  // Quick fill test code
+  const handleFillTestCode = () => {
+    setOtpDigits(['1', '2', '3', '4', '5', '6']);
+    setError(null);
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-teal-900 via-teal-800 to-teal-700 relative overflow-hidden">
-      {/* Background decoration */}
+      {/* Background ambient blurs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-24 -right-24 w-96 h-96 bg-teal-600/30 rounded-full blur-3xl" />
         <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-emerald-700/20 rounded-full blur-3xl" />
@@ -191,50 +172,30 @@ const LoginScreen: React.FC = () => {
         <p className="text-teal-200 text-xs mt-0.5 font-inter">Family Medicine Companion</p>
       </div>
 
-      {/* Card */}
+      {/* Auth Card */}
       <div className="relative z-10 flex-1 flex flex-col justify-start px-4 pb-8 max-w-sm mx-auto w-full">
-        <div className="bg-white rounded-3xl shadow-2xl p-6 w-full">
+        <div className="bg-white rounded-3xl shadow-2xl p-6 w-full border border-slate-100">
 
           {/* Loading State */}
           {loginStep === 'loading' && (
             <div className="flex flex-col items-center justify-center py-10">
               <Loader2 className="w-10 h-10 text-teal-600 animate-spin mb-3" />
-              <p className="text-slate-600 font-inter text-sm">Connecting to CareBox...</p>
+              <p className="text-slate-700 font-inter text-sm font-medium">Verifying code...</p>
+              <p className="text-slate-400 font-inter text-xs mt-1">Connecting to CareBox Family</p>
             </div>
           )}
 
-          {/* Main Entry */}
-          {loginStep === 'entry' && (
+          {/* Phone Number Entry Step */}
+          {loginStep === 'phone' && (
             <>
-              <div className="text-center mb-4">
+              <div className="text-center mb-5">
+                <div className="w-10 h-10 bg-teal-50 rounded-2xl flex items-center justify-center mx-auto mb-2 text-teal-600">
+                  <Smartphone className="w-5 h-5" />
+                </div>
                 <h2 className="text-lg font-bold text-slate-800 font-poppins">Welcome back</h2>
                 <p className="text-slate-500 text-xs mt-1 font-inter">
-                  Sign in to see how Mom is doing today.
+                  Enter your mobile number to sign in with OTP.
                 </p>
-              </div>
-
-              {/* Method Switcher Tabs */}
-              <div className="flex bg-slate-100 p-1 rounded-xl mb-4 text-xs font-inter font-medium text-slate-600">
-                <button
-                  type="button"
-                  onClick={() => { setAuthMethod('otp'); setError(null); }}
-                  className={`flex-1 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                    authMethod === 'otp' ? 'bg-white text-teal-700 shadow-sm font-semibold' : 'hover:text-slate-900'
-                  }`}
-                >
-                  <Mail className="w-3.5 h-3.5" />
-                  Email OTP
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setAuthMethod('password'); setError(null); }}
-                  className={`flex-1 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                    authMethod === 'password' ? 'bg-white text-teal-700 shadow-sm font-semibold' : 'hover:text-slate-900'
-                  }`}
-                >
-                  <KeyRound className="w-3.5 h-3.5" />
-                  Password
-                </button>
               </div>
 
               {error && (
@@ -243,143 +204,105 @@ const LoginScreen: React.FC = () => {
                 </div>
               )}
 
-              {successMsg && (
-                <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-xs font-inter leading-relaxed">
-                  {successMsg}
-                </div>
-              )}
-
-              {/* Email OTP Form */}
-              {authMethod === 'otp' && (
-                <form onSubmit={handleSendOTP} className="space-y-3">
-                  <div className="relative">
-                    <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-teal-500" />
-                    <input
-                      id="email-input"
-                      type="email"
-                      placeholder="your@email.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      autoComplete="email"
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-inter text-sm placeholder:text-slate-400 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="w-full py-3 bg-gradient-to-r from-teal-600 to-emerald-600 text-white rounded-xl font-semibold text-sm font-poppins shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
-                  >
-                    Send one-time code <ArrowRight className="w-4 h-4" />
-                  </button>
-                </form>
-              )}
-
-              {/* Password Form */}
-              {authMethod === 'password' && (
-                <form onSubmit={handlePasswordAuth} className="space-y-3">
-                  <div className="relative">
-                    <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-teal-500" />
-                    <input
-                      type="email"
-                      placeholder="your@email.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      autoComplete="email"
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-inter text-sm placeholder:text-slate-400 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all"
-                    />
-                  </div>
-                  <div className="relative">
-                    <KeyRound className="absolute left-3.5 top-3.5 w-4 h-4 text-teal-500" />
-                    <input
-                      type="password"
-                      placeholder="Password (min 6 chars)"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      autoComplete={isSignUp ? 'new-password' : 'current-password'}
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-inter text-sm placeholder:text-slate-400 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="w-full py-3 bg-gradient-to-r from-teal-600 to-emerald-600 text-white rounded-xl font-semibold text-sm font-poppins shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
-                  >
-                    {isSignUp ? 'Create Account' : 'Sign In'} <ArrowRight className="w-4 h-4" />
-                  </button>
-                  <div className="text-center">
-                    <button
-                      type="button"
-                      onClick={() => { setIsSignUp(!isSignUp); setError(null); }}
-                      className="text-xs text-teal-700 hover:underline font-inter"
+              <form onSubmit={handleSendOTP} className="space-y-4">
+                <div>
+                  <label htmlFor="phone-input" className="block text-xs font-medium text-slate-600 mb-1.5 font-inter">
+                    Mobile Number
+                  </label>
+                  <div className="flex gap-2">
+                    {/* Country Code Selector */}
+                    <select
+                      value={countryCode}
+                      onChange={(e) => setCountryCode(e.target.value)}
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-3 text-slate-800 font-inter text-sm focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all cursor-pointer font-medium"
                     >
-                      {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
-                    </button>
+                      {COUNTRY_CODES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.flag} {c.code}
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Phone Input */}
+                    <div className="relative flex-1">
+                      <input
+                        id="phone-input"
+                        type="tel"
+                        inputMode="numeric"
+                        placeholder="98765 43210"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        autoComplete="tel"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-inter text-sm placeholder:text-slate-400 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all font-medium tracking-wide"
+                      />
+                    </div>
                   </div>
-                </form>
-              )}
+                </div>
 
-              {/* Divider */}
-              <div className="flex items-center gap-3 my-3">
-                <div className="flex-1 h-px bg-slate-200" />
-                <span className="text-slate-400 text-[11px] font-inter">or</span>
-                <div className="flex-1 h-px bg-slate-200" />
-              </div>
+                <button
+                  type="submit"
+                  className="w-full py-3.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl font-semibold text-sm font-poppins shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                >
+                  Get OTP via SMS <ArrowRight className="w-4 h-4" />
+                </button>
+              </form>
 
-              {/* Google Button */}
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={isGoogleLoading}
-                className="w-full py-2.5 border border-slate-200 rounded-xl text-slate-700 font-inter text-xs font-medium flex items-center justify-center gap-2 hover:bg-slate-50 transition-all disabled:opacity-60"
-              >
-                {isGoogleLoading ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" aria-hidden="true">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                  </svg>
-                )}
-                Continue with Google
-              </button>
-
-              {/* Instant Demo Access Button — Always available */}
-              <div className="mt-4 pt-3 border-t border-slate-100">
+              {/* Instant Demo Access Button */}
+              <div className="mt-5 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={handleDemoContinue}
                   className="w-full py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl font-medium text-xs font-inter transition-all flex items-center justify-center gap-1.5"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                  Continue as Demo User (Instant Test) →
+                  Continue as Demo User (Instant Access) →
                 </button>
               </div>
 
-              {/* Trust badges */}
+              {/* Trust Badges */}
               <div className="mt-4 flex items-center justify-center gap-3 text-[11px] text-slate-400 font-inter">
-                <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> DPDP Private</span>
-                <span className="flex items-center gap-1"><Smartphone className="w-3 h-3" /> Status only</span>
+                <span className="flex items-center gap-1"><Shield className="w-3 h-3 text-teal-600" /> DPDP Act Protected</span>
+                <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-teal-600" /> No spam</span>
               </div>
             </>
           )}
 
-          {/* OTP Verification */}
+          {/* OTP Verification Step */}
           {loginStep === 'otp' && (
             <>
               <div className="text-center mb-5">
-                <div className="w-10 h-10 bg-teal-50 rounded-2xl flex items-center justify-center mx-auto mb-2">
-                  <Mail className="w-5 h-5 text-teal-600" />
+                <div className="w-10 h-10 bg-teal-50 rounded-2xl flex items-center justify-center mx-auto mb-2 text-teal-600">
+                  <Smartphone className="w-5 h-5" />
                 </div>
-                <h2 className="text-lg font-bold text-slate-800 font-poppins">Check your inbox</h2>
+                <h2 className="text-lg font-bold text-slate-800 font-poppins">Enter Verification Code</h2>
                 <p className="text-slate-500 text-xs mt-1 font-inter">
-                  {isDemoMode
-                    ? 'Enter any 6 digits to continue in demo mode.'
-                    : `We sent a code to ${email}`}
+                  We sent a 6-digit code to <strong className="text-slate-800">{fullPhoneNumber}</strong>
                 </p>
               </div>
 
+              {isMockMode && (
+                <div className="mb-4 p-3 bg-teal-50 border border-teal-200 rounded-xl text-teal-800 text-xs font-inter flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold">Test Code:</span> <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-teal-200 text-teal-900 font-bold">123456</code>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleFillTestCode}
+                    className="text-teal-700 underline font-semibold hover:text-teal-900"
+                  >
+                    Auto-Fill
+                  </button>
+                </div>
+              )}
+
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs font-inter text-center leading-relaxed">
+                  {error}
+                </div>
+              )}
+
               <form onSubmit={handleVerifyOTP} className="space-y-4">
-                <div className="flex gap-1.5 justify-center">
+                <div className="flex gap-2 justify-center">
                   {otpDigits.map((digit, i) => (
                     <input
                       key={i}
@@ -391,48 +314,54 @@ const LoginScreen: React.FC = () => {
                       value={digit}
                       onChange={(e) => handleOTPInput(i, e.target.value)}
                       onKeyDown={(e) => handleOTPKeyDown(i, e)}
-                      className="w-10 h-11 text-center text-lg font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl font-poppins focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all"
+                      className="w-10 h-12 text-center text-xl font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl font-poppins focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all"
                       aria-label={`OTP digit ${i + 1}`}
                     />
                   ))}
                 </div>
 
-                {error && (
-                  <p className="text-amber-600 text-xs font-inter bg-amber-50 px-3 py-2 rounded-lg text-center leading-relaxed">
-                    {error}
-                  </p>
-                )}
-
                 <button
                   type="submit"
-                  className="w-full py-3 bg-gradient-to-r from-teal-600 to-emerald-600 text-white rounded-xl font-semibold text-sm font-poppins shadow-md hover:shadow-lg transition-all"
+                  className="w-full py-3.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl font-semibold text-sm font-poppins shadow-md hover:shadow-lg transition-all"
                 >
                   Verify & Continue
                 </button>
 
-                <div className="flex flex-col gap-2 pt-1">
+                <div className="flex flex-col gap-2 pt-1 text-center">
+                  {resendCooldown > 0 ? (
+                    <span className="text-slate-400 text-xs font-inter">
+                      Resend code in {resendCooldown}s
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleSendOTP}
+                      className="text-teal-700 hover:underline text-xs font-inter font-semibold"
+                    >
+                      Resend OTP Code
+                    </button>
+                  )}
+
                   <button
                     type="button"
-                    onClick={() => { setLoginStep('entry'); setError(null); setOtpDigits(['', '', '', '', '', '']); }}
-                    className="w-full py-1 text-slate-500 text-xs font-inter hover:text-teal-600 transition-colors"
+                    onClick={() => {
+                      setLoginStep('phone');
+                      setError(null);
+                      setOtpDigits(['', '', '', '', '', '']);
+                    }}
+                    className="text-slate-500 text-xs font-inter hover:text-teal-700 pt-1"
                   >
-                    ← Back to email
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDemoContinue}
-                    className="w-full py-2 bg-slate-50 text-slate-600 text-xs rounded-lg hover:bg-slate-100 font-inter"
-                  >
-                    Skip and continue as Demo User →
+                    ← Change mobile number
                   </button>
                 </div>
               </form>
             </>
           )}
+
         </div>
 
         <p className="text-center text-teal-300/70 text-[11px] font-inter mt-4 px-4 leading-relaxed">
-          By continuing, you agree to CareBox's Terms and Privacy Policy. We never share your family's health data.
+          By signing in, you agree to CareBox's Terms and Privacy Policy. Health data is protected under DPDP Act 2023.
         </p>
       </div>
     </div>

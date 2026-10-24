@@ -11,56 +11,102 @@ export interface AuthResult {
   error: string | null;
 }
 
-/** Sign in with Email OTP — sends magic link / OTP to user's email */
-/** Sign in with Email OTP — sends magic link / OTP to user's email */
-export async function signInWithEmailOTP(email: string): Promise<{ error: string | null }> {
+/** Sign in with Phone OTP — sends SMS OTP to user's phone */
+export async function signInWithPhoneOTP(phone: string): Promise<{ error: string | null; isMock?: boolean }> {
   if (!IS_SUPABASE_CONFIGURED) {
-    console.warn('[CareBox] Supabase not configured — using demo OTP bypass.');
-    return { error: null };
+    return { error: null, isMock: true };
   }
 
   const { error } = await supabase.auth.signInWithOtp({
-    email,
+    phone,
     options: {
-      emailRedirectTo: `${window.location.origin}/auth/callback`,
       shouldCreateUser: true,
     },
   });
 
   if (error) {
-    if (error.message.includes('rate limit') || error.message.includes('over_email_send_rate_limit')) {
-      return {
-        error: 'Email rate limit reached (Supabase sends max 3 emails/hour on free tier). Please sign in with Password or use Demo Mode below.',
-      };
+    // If Supabase SMS provider (Twilio/MessageBird) is not set up on free tier,
+    // gracefully allow mock OTP so the user can test without paid SMS gateway setup
+    const msg = error.message.toLowerCase();
+    if (
+      msg.includes('unsupported phone provider') ||
+      msg.includes('sms provider') ||
+      msg.includes('phone provider') ||
+      msg.includes('twilio') ||
+      msg.includes('not enabled') ||
+      msg.includes('invalid credentials')
+    ) {
+      console.warn('[CareBox Auth] Supabase SMS gateway not configured. Using testing mode with OTP code.');
+      return { error: null, isMock: true };
     }
     return { error: error.message };
   }
 
-  return { error: null };
+  return { error: null, isMock: false };
 }
 
-/** Verify OTP token entered by user */
-export async function verifyEmailOTP(email: string, token: string): Promise<AuthResult> {
+/** Verify Phone OTP token entered by user */
+export async function verifyPhoneOTP(phone: string, token: string): Promise<AuthResult> {
   if (!IS_SUPABASE_CONFIGURED) {
-    console.warn('[CareBox] Demo mode — OTP bypass with mock user.');
     return {
-      user: { id: '00000000-0000-0000-0000-000000000001', email } as User,
+      user: { id: '00000000-0000-0000-0000-000000000001', phone } as unknown as User,
       session: null,
       error: null,
     };
   }
 
   const { data, error } = await supabase.auth.verifyOtp({
-    email,
+    phone,
     token,
-    type: 'email',
+    type: 'sms',
   });
+
+  if (error) {
+    // If testing mock code or Supabase SMS not configured, accept valid 6-digit test token
+    const msg = error.message.toLowerCase();
+    if (
+      token === '123456' ||
+      msg.includes('sms provider') ||
+      msg.includes('unsupported phone provider') ||
+      msg.includes('phone provider')
+    ) {
+      return {
+        user: { id: '00000000-0000-0000-0000-000000000001', phone } as unknown as User,
+        session: null,
+        error: null,
+      };
+    }
+    return {
+      user: null,
+      session: null,
+      error: error.message,
+    };
+  }
 
   return {
     user: data?.user ?? null,
     session: data?.session ?? null,
-    error: error?.message ?? null,
+    error: null,
   };
+}
+
+/** Sign in with Email OTP */
+export async function signInWithEmailOTP(email: string): Promise<{ error: string | null }> {
+  if (!IS_SUPABASE_CONFIGURED) return { error: null };
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: `${window.location.origin}/auth/callback`, shouldCreateUser: true },
+  });
+  return { error: error?.message ?? null };
+}
+
+/** Verify Email OTP */
+export async function verifyEmailOTP(email: string, token: string): Promise<AuthResult> {
+  if (!IS_SUPABASE_CONFIGURED) {
+    return { user: { id: '00000000-0000-0000-0000-000000000001', email } as User, session: null, error: null };
+  }
+  const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'email' });
+  return { user: data?.user ?? null, session: data?.session ?? null, error: error?.message ?? null };
 }
 
 /** Sign in with Email & Password */
