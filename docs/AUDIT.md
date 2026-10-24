@@ -200,3 +200,29 @@ npm run lint (vite build --mode development)
 3. **Static Service Worker Cache Name:** Cache name is static string `carebox-cache-v1`; requires dynamic build versioning.
 4. **Missing CI Pipeline:** No `.github/workflows/ci.yml` exists; README badges are static.
 5. **Missing PWA PNG Icons:** PWA manifest lacks 192px and 512px PNG icons required for mobile installability.
+
+---
+
+## 8. Master Plan vs. Real Schema Name Map (Phase 0 Audit Requirement)
+
+Below is the mapping between the assumed names in the Master Plan (marked **ADAPT**) and the concrete database schema in `supabase/migrations/`:
+
+| Master Plan Assumed Entity / Column | Real Schema Table & Column(s) | Adaptation & Implementation Rules |
+|---|---|---|
+| `families(id, name, created_by, sharing_paused)` | `public.families(id, name, created_by, created_at)` | In our schema, `sharing_paused` is on `public.parents(sharing_paused)`. Phase 2.1 will also add `sharing_paused boolean not null default false` to `public.families` and sync both so queries against either succeed. |
+| `members(family_id, user_id, role)` with roles `('owner', 'admin', 'parent', 'viewer')` | `public.members(id, family_id, user_id, role, status, invited_by, created_at)` | Real schema currently has `role in ('admin', 'viewer')`. Migration 2.1 will extend constraint to `role in ('owner', 'admin', 'parent', 'viewer')`. Primary key is `id`, uniqueness is `UNIQUE(family_id, user_id)`. |
+| `profiles(id, email, full_name, is_platform_admin)` | `public.profiles(id, name, avatar_url, created_at)` | Migration 2.1 will add `is_platform_admin boolean not null default false` and `email text`. `name` maps to `full_name`. |
+| `parents(...)` (Assumed embedded into family/member) | `public.parents(id, family_id, name, photo_url, sharing_paused, timezone, nudge_delay_min)` | Explicit dedicated entity representing the elderly parent living with the CareBox. |
+| `boxes(id, device_token_hash, ...)` | `public.boxes(id, parent_id, device_token_hash, qr_code, last_seen)` | Real schema links to `parent_id` (which maps 1:1 to family). Hardware bearer token uses bcrypt hash verified via `verify_box_token(box_id, token)`. |
+| `medicines(id, family_id, name, ...)` | `public.medicines(id, parent_id, name, strength, dosage_text, slot, pills_left, pills_per_dose, active)` | Associated with `parent_id`. Can resolve `family_id` via `public.get_parent_family_id(parent_id)`. |
+| `dose_schedules(id, family_id, time_of_day, medicines(name))` | `public.dose_schedules(id, parent_id, slot, time_local, active)` | `time_local` (type `TIME`) corresponds to `time_of_day`. Slots are `'morning'`, `'afternoon'`, `'night'`. Linked via `parent_id`. |
+| `dose_events(id, schedule_id, status, created_at)` | `public.dose_events(id, parent_id, slot, event_date, taken_at, source)` | Uniquely constrained by `(parent_id, slot, event_date)`. Existence of a row signifies dose confirmed/taken. `source` is `'box'`, `'manual'`, or `'simulator'`. |
+| `reminders(id, parent_id, slot, reminder_date, type, sent_by)` | `public.reminders(...)` | Records in-app nudges and logged phone calls. |
+| `reminder_log(schedule_id, dose_date, stage, sent_at)` | *To be created in Migration 2.2* | Idempotency log for the 3-stage push notifications (`due`, `nudge`, `family`). |
+| `notification_prefs(user_id, notify_taken, notify_missed, ...)` | *To be created in Migration 2.2* | Quiet hours, timezone, and notification category switches. |
+| `push_subscriptions(id, user_id, endpoint, p256dh, auth, user_agent)` | `public.push_subscriptions(id, user_id, endpoint, keys, created_at)` | Real schema has `keys JSONB` containing `p256dh` and `auth`. Migration 2.2 will ensure full VAPID compatibility. |
+| `notifications(id, user_id, type, title, body, payload, read_at)` | `public.notifications(...)` | Matches real schema. |
+| `consents(id, user_id, document, version, accepted_at, ip_hash)` | `public.consents(...)` | Matches real schema. |
+| `invitations(id, family_id, email, role, token_hash, ...)` | *To be created in Migration 2.3* | Magic token invitation engine. |
+| `audit_log(id, actor_id, action, target, metadata, created_at)` | `public.audit_log(...)` | Matches real schema. |
+

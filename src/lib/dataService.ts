@@ -143,6 +143,78 @@ export async function fetchMedicines(parentId: string): Promise<Medicine[]> {
   }));
 }
 
+// ─── Write: Insert Medicine ───────────────────────────────────────────────────
+export async function insertMedicine(
+  parentId: string,
+  med: {
+    name: string;
+    strength?: string;
+    dosage?: string;
+    slot: Medicine['slot'];
+    pillsLeft: number;
+    pillsPerDose: number;
+  }
+): Promise<{ id: string | null; error: string | null }> {
+  const cleanName = sanitizeText(med.name, 100);
+  if (!cleanName) return { id: null, error: 'Medicine name is required' };
+
+  if (!IS_SUPABASE_CONFIGURED) {
+    return { id: `mock-med-${Date.now()}`, error: null };
+  }
+
+  const { data, error } = await supabase
+    .from('medicines')
+    .insert({
+      parent_id: parentId,
+      name: cleanName,
+      strength: sanitizeText(med.strength || '', 50),
+      dosage_text: sanitizeText(med.dosage || '', 100),
+      slot: med.slot,
+      pills_left: Math.max(0, med.pillsLeft),
+      pills_per_dose: Math.max(1, med.pillsPerDose),
+      active: true,
+    } as any)
+    .select('id')
+    .single();
+
+  return { id: (data as any)?.id ?? null, error: error?.message ?? null };
+}
+
+// ─── Write: Update Medicine ───────────────────────────────────────────────────
+export async function updateMedicine(
+  medicineId: string,
+  updates: Partial<Omit<Medicine, 'id' | 'parentId' | 'daysLeft'>>
+): Promise<{ error: string | null }> {
+  if (!IS_SUPABASE_CONFIGURED) return { error: null };
+
+  const payload: Record<string, unknown> = {};
+  if (updates.name !== undefined) payload.name = sanitizeText(updates.name, 100);
+  if (updates.strength !== undefined) payload.strength = sanitizeText(updates.strength, 50);
+  if (updates.dosage !== undefined) payload.dosage_text = sanitizeText(updates.dosage, 100);
+  if (updates.slot !== undefined) payload.slot = updates.slot;
+  if (updates.pillsLeft !== undefined) payload.pills_left = Math.max(0, updates.pillsLeft);
+  if (updates.pillsPerDose !== undefined) payload.pills_per_dose = Math.max(1, updates.pillsPerDose);
+
+  const { error } = await supabase
+    .from('medicines')
+    .update(payload as any)
+    .eq('id', medicineId);
+
+  return { error: error?.message ?? null };
+}
+
+// ─── Write: Delete Medicine ───────────────────────────────────────────────────
+export async function deleteMedicine(medicineId: string): Promise<{ error: string | null }> {
+  if (!IS_SUPABASE_CONFIGURED) return { error: null };
+
+  const { error } = await supabase
+    .from('medicines')
+    .delete()
+    .eq('id', medicineId);
+
+  return { error: error?.message ?? null };
+}
+
 // ─── Read: Family Members ─────────────────────────────────────────────────────
 export async function fetchFamilyMembers(familyId: string): Promise<FamilyMember[]> {
   if (!IS_SUPABASE_CONFIGURED) return INITIAL_FAMILY_MEMBERS;

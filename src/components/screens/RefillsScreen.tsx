@@ -1,19 +1,77 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ChevronRight, ShoppingBag, Bell, Pill, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Bell, Pill, ExternalLink, Plus, ShoppingBag } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Medicine } from '../../types';
 import { EmptyState } from '../common/EmptyState';
+import { MedicineModal } from './MedicineModal';
+import { insertMedicine, updateMedicine, deleteMedicine } from '../../lib/dataService';
 
 export const RefillsScreen: React.FC = () => {
-  const { setCurrentTab, medicines, showToast } = useApp();
+  const { setCurrentTab, parent, medicines, setMedicines, showToast } = useApp();
   const [selectedMed, setSelectedMed] = useState<Medicine | null>(null);
   const [showPharmacyModal, setShowPharmacyModal] = useState(false);
+  const [showMedicineModal, setShowMedicineModal] = useState(false);
 
   const pharmacyOptions = [
     { name: 'Tata 1mg', url: 'https://www.1mg.com', desc: 'Home delivery across India' },
     { name: 'Apollo Pharmacy', url: 'https://www.apollopharmacy.in', desc: '24/7 delivery in major cities' },
     { name: 'PharmEasy', url: 'https://pharmeasy.in', desc: 'Prescription refill discounts' },
   ];
+
+  const handleSaveMedicine = async (medData: {
+    name: string;
+    strength: string;
+    dosage: string;
+    slot: Medicine['slot'];
+    pillsLeft: number;
+    pillsPerDose: number;
+  }) => {
+    if (selectedMed) {
+      // Update existing
+      const { error } = await updateMedicine(selectedMed.id, medData);
+      if (error) {
+        showToast(`Failed to update: ${error}`);
+        return;
+      }
+      setMedicines((prev) =>
+        prev.map((m) =>
+          m.id === selectedMed.id
+            ? {
+                ...m,
+                ...medData,
+                daysLeft: Math.floor(medData.pillsLeft / medData.pillsPerDose),
+              }
+            : m
+        )
+      );
+      showToast(`Updated ${medData.name}`);
+    } else {
+      // Insert new
+      const { id, error } = await insertMedicine(parent.id || 'parent-1', medData);
+      if (error) {
+        showToast(`Failed to add: ${error}`);
+        return;
+      }
+      const newMed: Medicine = {
+        id: id || `med-${Date.now()}`,
+        parentId: parent.id || 'parent-1',
+        ...medData,
+        daysLeft: Math.floor(medData.pillsLeft / medData.pillsPerDose),
+      };
+      setMedicines((prev) => [...prev, newMed]);
+      showToast(`Added ${medData.name}`);
+    }
+  };
+
+  const handleDeleteMedicine = async (medicineId: string) => {
+    const { error } = await deleteMedicine(medicineId);
+    if (error) {
+      showToast(`Failed to delete: ${error}`);
+      return;
+    }
+    setMedicines((prev) => prev.filter((m) => m.id !== medicineId));
+    showToast('Medication removed');
+  };
 
   return (
     <div className="flex flex-col h-full bg-[#FCF6EE] px-5 py-4 overflow-y-auto">
@@ -27,18 +85,33 @@ export const RefillsScreen: React.FC = () => {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <h1 className="font-heading font-semibold text-base text-[#1F4E4B]">
-          Refills
+          Refills &amp; Prescriptions
         </h1>
-        <div className="w-7" />
+        <button
+          onClick={() => {
+            setSelectedMed(null);
+            setShowMedicineModal(true);
+          }}
+          className="p-1.5 text-[#2E7D79] hover:bg-[#2E7D79]/10 rounded-full transition-colors flex items-center justify-center"
+          title="Add Medication"
+          aria-label="Add Medication"
+        >
+          <Plus className="w-5 h-5 stroke-[2.5]" />
+        </button>
       </div>
 
-      {/* Medicine Cards List matching Screen 6 */}
+      {/* Medicine Cards List */}
       <div className="space-y-3 mb-6">
         {medicines.length === 0 ? (
           <EmptyState
             icon={Pill}
             title="No Prescriptions Added"
             description="Add daily medications to track remaining pills and receive automatic refill warnings."
+            actionLabel="+ Add First Medication"
+            onAction={() => {
+              setSelectedMed(null);
+              setShowMedicineModal(true);
+            }}
           />
         ) : (
           medicines.map((med) => {
@@ -47,7 +120,10 @@ export const RefillsScreen: React.FC = () => {
             return (
               <div
                 key={med.id}
-                onClick={() => setSelectedMed(med)}
+                onClick={() => {
+                  setSelectedMed(med);
+                  setShowMedicineModal(true);
+                }}
                 className="bg-white rounded-2xl p-4 shadow-card border border-[#E5EAE9] flex items-center justify-between cursor-pointer hover:border-[#2E7D79]/30 transition-all active:scale-[0.99]"
               >
                 <div className="flex items-center gap-3.5">
@@ -85,11 +161,11 @@ export const RefillsScreen: React.FC = () => {
         )}
       </div>
 
-      {/* Action Buttons matching Screen 6 */}
+      {/* Action Buttons */}
       <div className="mt-auto space-y-3 pb-2">
         <button
           id="btn-remind-order"
-          onClick={() => showToast('Calendar reminder set: Refill Metformin in 2 days.')}
+          onClick={() => showToast('Calendar reminder set: Refill check scheduled in 2 days.')}
           className="w-full py-4 bg-[#2E7D79] hover:bg-[#246562] active:scale-[0.99] text-white font-medium text-base rounded-2xl shadow-soft flex items-center justify-center gap-2 transition-all duration-200"
         >
           <Bell className="w-4 h-4" />
@@ -106,70 +182,27 @@ export const RefillsScreen: React.FC = () => {
         </button>
       </div>
 
-      {/* Medicine Detail Modal */}
-      {selectedMed && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn"
-          onClick={() => setSelectedMed(null)}
-        >
-          <div
-            className="bg-white w-full max-w-sm rounded-3xl p-5 shadow-float border border-[#E5EAE9]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="font-heading font-bold text-base text-[#1F4E4B]">
-              {selectedMed.name}
-            </h3>
-            <p className="text-xs text-[#597573] mt-1">{selectedMed.dosage}</p>
+      {/* Medicine Add/Edit Modal */}
+      <MedicineModal
+        isOpen={showMedicineModal}
+        onClose={() => setShowMedicineModal(false)}
+        medicine={selectedMed}
+        onSave={handleSaveMedicine}
+        onDelete={handleDeleteMedicine}
+      />
 
-            <div className="bg-[#FCF6EE] p-3 rounded-2xl my-4 space-y-1.5 text-xs">
-              <div className="flex justify-between">
-                <span className="text-[#597573]">Pills remaining:</span>
-                <span className="font-semibold text-[#1F4E4B]">{selectedMed.pillsLeft} tablets</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#597573]">Daily consumption:</span>
-                <span className="font-semibold text-[#1F4E4B]">{selectedMed.pillsPerDose} / day</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#597573]">Estimated run out:</span>
-                <span className={`font-semibold ${selectedMed.daysLeft <= 5 ? 'text-[#D89825]' : 'text-[#27A348]'}`}>
-                  {selectedMed.daysLeft} days
-                </span>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setSelectedMed(null)}
-              className="w-full py-3 bg-[#2E7D79] text-white text-xs font-medium rounded-xl hover:bg-[#246562]"
-            >
-              Done
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Pharmacy External Links Modal */}
+      {/* Pharmacy Links Modal */}
       {showPharmacyModal && (
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn"
-          onClick={() => setShowPharmacyModal(false)}
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4"
         >
-          <div
-            className="bg-white w-full max-w-sm rounded-3xl p-5 shadow-float border border-[#E5EAE9]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="font-heading font-bold text-base text-[#1F4E4B] mb-1">
-              Order from Pharmacy
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-card space-y-4">
+            <h3 className="font-heading font-semibold text-base text-[#1F4E4B]">
+              Choose Pharmacy
             </h3>
-            <p className="text-xs text-[#597573] mb-4">
-              Select your trusted pharmacy partner. CareBox does not process payments or collect commissions.
-            </p>
-
-            <div className="space-y-2 mb-4">
+            <div className="space-y-2">
               {pharmacyOptions.map((pharm) => (
                 <a
                   key={pharm.name}

@@ -93,3 +93,59 @@ export function isLowRefill(daysLeft: number): boolean {
 export function getWeeklyAdherenceSummary(takenCount: number, totalExpectedCount: number): string {
   return `Mom took ${takenCount} of ${totalExpectedCount} doses this week.`;
 }
+
+export interface ExpectedDose {
+  slot: Slot;
+  scheduledTime: string; // e.g. "08:00"
+  label: string; // e.g. "8:00 AM"
+  status: DoseStatus;
+  event: DoseEvent | undefined;
+}
+
+/**
+ * Pure schedule generator:
+ * From dose_schedules, derives today's expected doses in the user's timezone (default Asia/Kolkata).
+ */
+export function generateDailySchedule(
+  schedules: { slot: Slot; timeLocal: string; label?: string }[],
+  currentDate: Date = new Date(),
+  timezone: string = 'Asia/Kolkata',
+  events: DoseEvent[] = [],
+  nudgeDelayMin: number = 60
+): ExpectedDose[] {
+  const timeStr = new Intl.DateTimeFormat('en-GB', {
+    timeZone: timezone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(currentDate);
+
+  const [hours, mins] = timeStr.split(':').map(Number);
+  const currentMinutes = (hours || 0) * 60 + (mins || 0);
+
+  const slotsConfig: SlotConfig[] = schedules.map((s) => ({
+    slot: s.slot,
+    scheduledTimeMinutes: timeStringToMinutes(s.timeLocal),
+    label: s.label || s.timeLocal,
+  }));
+
+  return schedules.map((sched) => {
+    const event = events.find((e) => e.slot === sched.slot);
+    const status = computeDoseStatus(
+      sched.slot,
+      currentMinutes,
+      event,
+      nudgeDelayMin,
+      slotsConfig
+    );
+
+    return {
+      slot: sched.slot,
+      scheduledTime: sched.timeLocal,
+      label: sched.label || sched.timeLocal,
+      status,
+      event,
+    };
+  });
+}
+
