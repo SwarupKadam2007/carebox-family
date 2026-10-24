@@ -7,6 +7,7 @@
 // Defensive check to ensure no service_role key is bundled into the client
 function isServiceRoleKey(key: string): boolean {
   if (!key) return false;
+  if (key.startsWith('sb_secret_')) return true;
   try {
     const parts = key.split('.');
     if (parts.length === 3) {
