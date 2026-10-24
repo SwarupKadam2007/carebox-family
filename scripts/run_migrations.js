@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 
 // ─── Config ──────────────────────────────────────────────────────────────────
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://oulrorvbzlacsbjuoabb.supabase.co';
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://mtnvpwpotvtfhjtlxhxc.supabase.co';
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_KEY || '';
 
 // project ref extracted from URL
