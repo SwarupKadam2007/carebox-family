@@ -21,6 +21,7 @@ interface AuthContextType {
   authStep: AuthStep;
   setAuthStep: (step: AuthStep) => void;
   isDemoMode: boolean;
+  loginAsDemoUser: () => void;
   signOutUser: () => Promise<void>;
   userRole: 'admin' | 'viewer';
   setUserRole: (role: 'admin' | 'viewer') => void;
@@ -126,6 +127,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, [isDemoMode]);
 
+  const loginAsDemoUser = useCallback(() => {
+    setUser(DEMO_USER);
+    setUserRole('admin');
+    setConsentsAccepted({ terms: true, privacy: true, medicineData: true });
+    setAuthStep('ready');
+  }, []);
+
   const signOutUser = useCallback(async () => {
     await signOut();
     setUser(null);
@@ -142,6 +150,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       authStep,
       setAuthStep,
       isDemoMode,
+      loginAsDemoUser,
       signOutUser,
       userRole,
       setUserRole,
@@ -162,6 +171,7 @@ export const useAuth = (): AuthContextType => {
       authStep: 'ready',
       setAuthStep: () => {},
       isDemoMode: true,
+      loginAsDemoUser: () => {},
       signOutUser: async () => {},
       userRole: 'admin',
       setUserRole: () => {},

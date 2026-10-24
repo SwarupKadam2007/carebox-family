@@ -12,6 +12,7 @@ export interface AuthResult {
 }
 
 /** Sign in with Email OTP — sends magic link / OTP to user's email */
+/** Sign in with Email OTP — sends magic link / OTP to user's email */
 export async function signInWithEmailOTP(email: string): Promise<{ error: string | null }> {
   if (!IS_SUPABASE_CONFIGURED) {
     console.warn('[CareBox] Supabase not configured — using demo OTP bypass.');
@@ -26,7 +27,16 @@ export async function signInWithEmailOTP(email: string): Promise<{ error: string
     },
   });
 
-  return { error: error?.message ?? null };
+  if (error) {
+    if (error.message.includes('rate limit') || error.message.includes('over_email_send_rate_limit')) {
+      return {
+        error: 'Email rate limit reached (Supabase sends max 3 emails/hour on free tier). Please sign in with Password or use Demo Mode below.',
+      };
+    }
+    return { error: error.message };
+  }
+
+  return { error: null };
 }
 
 /** Verify OTP token entered by user */
@@ -53,6 +63,53 @@ export async function verifyEmailOTP(email: string, token: string): Promise<Auth
   };
 }
 
+/** Sign in with Email & Password */
+export async function signInWithPassword(email: string, password: string): Promise<AuthResult> {
+  if (!IS_SUPABASE_CONFIGURED) {
+    return {
+      user: { id: '00000000-0000-0000-0000-000000000001', email } as User,
+      session: null,
+      error: null,
+    };
+  }
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  return {
+    user: data?.user ?? null,
+    session: data?.session ?? null,
+    error: error?.message ?? null,
+  };
+}
+
+/** Sign up with Email & Password */
+export async function signUpWithPassword(email: string, password: string): Promise<AuthResult> {
+  if (!IS_SUPABASE_CONFIGURED) {
+    return {
+      user: { id: '00000000-0000-0000-0000-000000000001', email } as User,
+      session: null,
+      error: null,
+    };
+  }
+
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: `${window.location.origin}/auth/callback`,
+    },
+  });
+
+  return {
+    user: data?.user ?? null,
+    session: data?.session ?? null,
+    error: error?.message ?? null,
+  };
+}
+
 /** Sign in with Google OAuth */
 export async function signInWithGoogle(): Promise<{ error: string | null }> {
   if (!IS_SUPABASE_CONFIGURED) {
@@ -68,7 +125,16 @@ export async function signInWithGoogle(): Promise<{ error: string | null }> {
     },
   });
 
-  return { error: error?.message ?? null };
+  if (error) {
+    if (error.message.includes('provider is not enabled') || error.message.includes('Unsupported provider')) {
+      return {
+        error: 'Google Sign-In is not enabled yet in your Supabase dashboard (Authentication → Providers → Google). You can sign in with Password or use Demo Mode below.',
+      };
+    }
+    return { error: error.message };
+  }
+
+  return { error: null };
 }
 
 /** Get current session */
