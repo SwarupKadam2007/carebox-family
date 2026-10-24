@@ -5,6 +5,7 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => ({
   plugins: [react()],
+  envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
   esbuild: {
     // Turn off debug mode in production: drop console statements and debuggers
     drop: mode === 'production' ? ['console', 'debugger'] : [],

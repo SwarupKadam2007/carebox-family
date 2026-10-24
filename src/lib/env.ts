@@ -47,8 +47,8 @@ function validateUrl(url: string | undefined): string {
   }
 }
 
-const rawUrl = import.meta.env.VITE_SUPABASE_URL ?? '';
-const rawAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
+const rawUrl = import.meta.env.VITE_SUPABASE_URL ?? (import.meta.env as Record<string, string | undefined>).NEXT_PUBLIC_SUPABASE_URL ?? '';
+const rawAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? (import.meta.env as Record<string, string | undefined>).NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 const rawAppEnv = import.meta.env.VITE_APP_ENV ?? (import.meta.env.MODE as string) ?? 'development';
 
 // Guard: NEVER allow a service role key in the browser
